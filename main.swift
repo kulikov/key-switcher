@@ -135,27 +135,31 @@ final class Switcher {
         let focusStatus = AXUIElementCopyAttributeValue(AXUIElementCreateSystemWide(), kAXFocusedUIElementAttribute as CFString, &focused)
         guard focusStatus == .success || unsupported.contains(focusStatus) else { return switchOnly() }
         let element = focused.map { $0 as! AXUIElement }
+        var editable: DarwinBoolean = false
+        if let element { AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &editable) }
 
         if !word.isEmpty {
             let shown = word.map { translate($0, in: current) }.joined() + String(repeating: " ", count: spaces)
             let length = shown.utf16.count
 
-            var caret: CFTypeRef?
-            var range = CFRange()
-            let caretStatus = element.map { AXUIElementCopyAttributeValue($0, kAXSelectedTextRangeAttribute as CFString, &caret) } ?? .noValue
-            if let element, caretStatus == .success {
-                guard let caret, CFGetTypeID(caret) == AXValueGetTypeID(), AXValueGetValue(caret as! AXValue, .cfRange, &range),
-                      range.length == 0, range.location >= length else { return switchOnly() }
+            if let element, editable.boolValue {
+                var caret: CFTypeRef?
+                var range = CFRange()
+                let caretStatus = AXUIElementCopyAttributeValue(element, kAXSelectedTextRangeAttribute as CFString, &caret)
+                if caretStatus == .success {
+                    guard let caret, CFGetTypeID(caret) == AXValueGetTypeID(), AXValueGetValue(caret as! AXValue, .cfRange, &range),
+                          range.length == 0, range.location >= length else { return switchOnly() }
 
-                var span = CFRange(location: range.location - length, length: length)
-                var before: CFTypeRef?
-                let textStatus = AXUIElementCopyParameterizedAttributeValue(
-                    element, kAXStringForRangeParameterizedAttribute as CFString, AXValueCreate(.cfRange, &span)!, &before
-                )
-                let verified = textStatus == .success ? before as? String == shown : unsupported.contains(textStatus)
-                guard verified else { return switchOnly() }
-            } else if !unsupported.contains(caretStatus) {
-                return switchOnly()
+                    var span = CFRange(location: range.location - length, length: length)
+                    var before: CFTypeRef?
+                    let textStatus = AXUIElementCopyParameterizedAttributeValue(
+                        element, kAXStringForRangeParameterizedAttribute as CFString, AXValueCreate(.cfRange, &span)!, &before
+                    )
+                    let verified = textStatus == .success ? before as? String == shown : unsupported.contains(textStatus)
+                    guard verified else { return switchOnly() }
+                } else if !unsupported.contains(caretStatus) {
+                    return switchOnly()
+                }
             }
 
             let strokes = word.map { ($0, translate($0, in: other)) }
@@ -163,12 +167,8 @@ final class Switcher {
             return replace(erasing: word.count + spaces, with: strokes, in: other, reselect: false)
         }
 
-        var editable: DarwinBoolean = false
         var selected: CFTypeRef?
-        if let element {
-            AXUIElementIsAttributeSettable(element, kAXValueAttribute as CFString, &editable)
-            AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selected)
-        }
+        if let element { AXUIElementCopyAttributeValue(element, kAXSelectedTextAttribute as CFString, &selected) }
         guard editable.boolValue, let selection = selected as? String, (1...1000).contains(selection.count) else { return switchOnly() }
 
         let inCurrent = keymap(current)
