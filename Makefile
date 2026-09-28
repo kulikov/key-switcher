@@ -7,7 +7,7 @@ build: build/AppIcon.icns
 	xcrun swiftc main.swift -o "build/Key Switcher.app/Contents/MacOS/KeySwitcher" -O -module-cache-path build/module-cache
 	cp Info.plist "build/Key Switcher.app/Contents/Info.plist"
 	cp build/AppIcon.icns "build/Key Switcher.app/Contents/Resources/AppIcon.icns"
-	codesign --force --sign "Apple Development" "build/Key Switcher.app"
+	codesign --force --options runtime --sign "Apple Development" "build/Key Switcher.app"
 	touch "build/Key Switcher.app"
 
 build/AppIcon.icns: assets/app-icon.png
