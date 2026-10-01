@@ -244,6 +244,82 @@ final class Switcher {
     }
 }
 
+final class LayoutFlag: NSObject {
+    private static let white = NSColor(white: 0, alpha: 0.15)
+    private static let blue = NSColor(white: 0, alpha: 0.5)
+    private static let red = NSColor(white: 0, alpha: 1)
+
+    private let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+
+    private let british = LayoutFlag.flag { rect in
+        let transform = NSAffineTransform()
+        transform.scaleX(by: rect.width / 60, yBy: rect.height / 30)
+        transform.concat()
+
+        blue.setFill()
+        NSRect(x: 0, y: 0, width: 60, height: 30).fill()
+
+        let diagonals = NSBezierPath()
+        diagonals.move(to: NSPoint(x: 0, y: 0))
+        diagonals.line(to: NSPoint(x: 60, y: 30))
+        diagonals.move(to: NSPoint(x: 0, y: 30))
+        diagonals.line(to: NSPoint(x: 60, y: 0))
+        diagonals.lineWidth = 6
+        white.setStroke()
+        diagonals.stroke()
+        diagonals.lineWidth = 2
+        red.setStroke()
+        diagonals.stroke()
+
+        white.setFill()
+        NSRect(x: 25, y: 0, width: 10, height: 30).fill()
+        NSRect(x: 0, y: 10, width: 60, height: 10).fill()
+        red.setFill()
+        NSRect(x: 27, y: 0, width: 6, height: 30).fill()
+        NSRect(x: 0, y: 12, width: 60, height: 6).fill()
+    }
+
+    private let russian = LayoutFlag.flag { rect in
+        let stripe = rect.height / 3
+        for (index, color) in [red, blue, white].enumerated() {
+            color.setFill()
+            NSRect(x: rect.minX, y: rect.minY + stripe * CGFloat(index), width: rect.width, height: stripe).fill()
+        }
+    }
+
+    func start() {
+        DistributedNotificationCenter.default().addObserver(
+            self,
+            selector: #selector(update),
+            name: NSNotification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String),
+            object: nil,
+            suspensionBehavior: .deliverImmediately
+        )
+        update()
+    }
+
+    @objc private func update() {
+        let layout = TISCopyCurrentKeyboardLayoutInputSource().takeRetainedValue()
+        let languages = Unmanaged<CFArray>.fromOpaque(TISGetInputSourceProperty(layout, kTISPropertyInputSourceLanguages))
+            .takeUnretainedValue() as? [String]
+        item.button?.image = languages?.first == "ru" ? russian : british
+    }
+
+    private static func flag(_ draw: @escaping (NSRect) -> Void) -> NSImage {
+        let image = NSImage(size: NSSize(width: 21, height: 14), flipped: false) { rect in
+            NSBezierPath(roundedRect: rect, xRadius: 2.5, yRadius: 2.5).addClip()
+            NSGraphicsContext.current?.compositingOperation = .copy
+            draw(rect)
+            return true
+        }
+        image.isTemplate = true
+        return image
+    }
+}
+
+let app = NSApplication.shared
 let switcher = Switcher()
 switcher.start()
-NSApplication.shared.run()
+let flag = LayoutFlag()
+flag.start()
+app.run()
